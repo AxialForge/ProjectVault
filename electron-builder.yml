@@ -1,0 +1,38 @@
+appId: com.axialforge.drafthouse
+productName: Drafthouse
+copyright: Copyright © 2026 AxialForge
+
+directories:
+  output: dist
+  buildResources: assets
+
+files:
+  - src/**/*
+  - assets/icon.png
+  - package.json
+  - "!src/renderer/vendor/**/*.map"
+
+asarUnpack:
+  - node_modules/sql.js/dist/sql-wasm.wasm
+
+publish:
+  provider: github
+  owner: AxialForge
+  repo: Drafthouse
+
+win:
+  target:
+    - nsis
+  icon: assets/icon.ico
+  artifactName: ${name}-${version}-setup.${ext}
+
+nsis:
+  # One-click, per-user install: no wizard, no UAC, and the silent updater can
+  # replace the app without ever showing a dialog (see src/main/updater.js).
+  oneClick: true
+  perMachine: false
+  allowToChangeInstallationDirectory: false
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Drafthouse
+  artifactName: ${name}-${version}-setup.${ext}

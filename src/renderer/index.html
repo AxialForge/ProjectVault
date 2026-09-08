@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' lib:; img-src 'self' lib: data: blob:; media-src 'self' lib: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; worker-src 'self' blob:; connect-src 'self' lib: blob: data:; font-src 'self' data:" />
+  <title>Drafthouse</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<div class="app" id="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <img class="brand-icon" src="../../assets/icon.png" alt="" />
+      <div><div class="brand-name">Drafthouse</div><div class="brand-sub">project library</div></div>
+    </div>
+    <div class="search-wrap">
+      <input id="search" type="search" placeholder="Search everything…  (Ctrl+K)" autocomplete="off" />
+    </div>
+    <nav class="nav">
+      <button class="nav-item" data-nav="home"><span class="ico">⌂</span>Home</button>
+    </nav>
+    <div class="side-head"><span>Projects</span><button class="icon-btn" id="btn-new-project" title="New project">＋</button></div>
+    <div class="tree" id="tree"></div>
+    <div class="sidebar-foot">
+      <button class="btn small ghost" id="btn-backup" title="Mirror the library to the NAS">⇪ Backup</button>
+      <span class="spacer"></span>
+      <button class="icon-btn" id="btn-settings" title="Settings">⚙</button>
+    </div>
+  </aside>
+
+  <main class="main" id="main">
+    <div class="topbar"><h1 id="title">Drafthouse</h1><div class="topbar-actions" id="top-actions"></div></div>
+
+    <section class="page" id="page-setup">
+      <div class="setup">
+        <img src="../../assets/icon.png" width="96" height="96" alt="" />
+        <h2>Welcome to Drafthouse</h2>
+        <p class="muted">Pick a folder for your library. Drafthouse owns this folder: every file you add is copied into it, sorted by project, and versioned. Choose a spot on your local disk (fast, works offline); the NAS gets a mirror through Backup.</p>
+        <div class="row"><input id="setup-path" type="text" placeholder="C:\Users\you\Drafthouse Library" /><button class="btn" id="setup-browse">Browse…</button></div>
+        <button class="btn primary" id="setup-open">Open library</button>
+      </div>
+    </section>
+
+    <section class="page" id="page-home"></section>
+
+    <section class="page" id="page-project">
+      <header class="proj-head" id="proj-head"></header>
+      <div class="tabs" id="tabs">
+        <button class="tab active" data-tab="files">Files</button>
+        <button class="tab" data-tab="notes">Notes</button>
+        <button class="tab" data-tab="fields">Fields</button>
+        <button class="tab" data-tab="history">History</button>
+      </div>
+      <div class="tab-body" id="tab-files">
+        <div class="toolbar">
+          <button class="btn" id="btn-add-files">＋ Add files</button>
+          <button class="btn" id="btn-add-folder">＋ Add folder</button>
+          <select id="kind-filter"><option value="">All types</option></select>
+          <select id="sort"><option value="name">Name</option><option value="updated">Recently updated</option><option value="kind">Type</option><option value="size">Size</option></select>
+          <span class="spacer"></span>
+          <span class="muted small" id="file-count"></span>
+          <div class="seg"><button data-view="grid" class="active" title="Grid">▦</button><button data-view="list" title="List">☰</button></div>
+        </div>
+        <div class="dropzone" id="dropzone"><div class="grid" id="items"></div><div class="empty hidden" id="items-empty">Drop files or folders here, or use <b>Add files</b>.</div></div>
+      </div>
+      <div class="tab-body hidden" id="tab-notes"><textarea id="proj-notes" placeholder="Project notes, decisions, part sources, lessons learned…"></textarea></div>
+      <div class="tab-body hidden" id="tab-fields"></div>
+      <div class="tab-body hidden" id="tab-history"></div>
+    </section>
+
+    <section class="page" id="page-search"></section>
+  </main>
+
+  <aside class="inspector" id="inspector"><div class="empty">Select a file to see its preview, details and versions.</div></aside>
+</div>
+
+<div class="progress hidden" id="progress"><div class="bar"><div class="fill" id="progress-fill"></div></div><span id="progress-label"></span></div>
+<div id="toasts"></div>
+<div class="modal-root hidden" id="modal-root"></div>
+<canvas id="offscreen" width="512" height="512" hidden></canvas>
+<script type="module" src="app.js"></script>
+</body>
+</html>
