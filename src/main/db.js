@@ -1,5 +1,5 @@
 // SQLite via sql.js (pure WASM, no native build). The whole database is held in
-// memory and flushed to <library>/drafthouse.db shortly after every write. At
+// memory and flushed to <library>/projectvault.db shortly after every write. At
 // the size of a personal library (hundreds to low thousands of files) this is
 // instant and sidesteps the native-addon build trap on this machine.
 const path = require("node:path");
@@ -83,7 +83,7 @@ class Database {
     const SQL = await initSqlJs({
       locateFile: (f) => path.join(path.dirname(require.resolve("sql.js")), f),
     });
-    const file = path.join(libraryPath, "drafthouse.db");
+    const file = path.join(libraryPath, "projectvault.db");
     let db;
     if (fs.existsSync(file)) db = new SQL.Database(fs.readFileSync(file));
     else db = new SQL.Database();

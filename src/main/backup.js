@@ -68,7 +68,7 @@ async function run({ libraryPath, nasPath, deletions, onProgress, onDeletionDone
   }
 
   // 2. Mirror files.
-  const files = await walk(libraryPath, libraryPath, [path.join(".drafthouse", "trash"), "drafthouse.db.tmp"], []);
+  const files = await walk(libraryPath, libraryPath, [path.join(".projectvault", "trash"), "projectvault.db.tmp"], []);
   let n = 0;
   for (const rel of files) {
     n++;

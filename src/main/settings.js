@@ -7,7 +7,7 @@ const fs = require("node:fs");
 
 const DEFAULTS = {
   libraryPath: "",
-  nasPath: "\\\\192.168.1.204\\Apocrypha_Main_Pool\\Libary_Pool\\Drafthouse Library",
+  nasPath: "\\\\192.168.1.204\\Apocrypha_Main_Pool\\Libary_Pool\\ProjectVault Library",
   theme: "dark",
   backupOnQuit: false,
   view: "grid",

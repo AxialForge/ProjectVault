@@ -1,16 +1,16 @@
 {
-  "name": "drafthouse",
-  "productName": "Drafthouse",
+  "name": "projectvault",
+  "productName": "ProjectVault",
   "version": "0.1.0",
   "description": "Personal CAD and maker project library: every part, every version, one place.",
   "main": "src/main/main.js",
   "author": "AxialForge",
   "license": "MIT",
   "private": true,
-  "homepage": "https://github.com/AxialForge/Drafthouse",
+  "homepage": "https://github.com/AxialForge/ProjectVault",
   "repository": {
     "type": "git",
-    "url": "https://github.com/AxialForge/Drafthouse.git"
+    "url": "https://github.com/AxialForge/ProjectVault.git"
   },
   "engines": {
     "node": ">=22"

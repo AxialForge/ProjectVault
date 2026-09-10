@@ -13,15 +13,15 @@ test("backup mirrors new files, skips unchanged, never deletes without a deletio
   const lib = tmp(), nas = tmp();
   fs.mkdirSync(path.join(lib, "Proj"), { recursive: true });
   fs.writeFileSync(path.join(lib, "Proj", "a.stl"), "aaa");
-  fs.writeFileSync(path.join(lib, "drafthouse.db"), "db");
-  fs.mkdirSync(path.join(lib, ".drafthouse", "trash", "x"), { recursive: true });
-  fs.writeFileSync(path.join(lib, ".drafthouse", "trash", "x", "junk"), "junk");
+  fs.writeFileSync(path.join(lib, "projectvault.db"), "db");
+  fs.mkdirSync(path.join(lib, ".projectvault", "trash", "x"), { recursive: true });
+  fs.writeFileSync(path.join(lib, ".projectvault", "trash", "x", "junk"), "junk");
   fs.writeFileSync(path.join(nas, "orphan.txt"), "left alone");
 
   let r = await backup.run({ libraryPath: lib, nasPath: nas, deletions: [], onDeletionDone: () => {} });
   assert.equal(r.copied, 2);
   assert.equal(fs.readFileSync(path.join(nas, "Proj", "a.stl"), "utf8"), "aaa");
-  assert.ok(!fs.existsSync(path.join(nas, ".drafthouse", "trash")), "trash is not mirrored");
+  assert.ok(!fs.existsSync(path.join(nas, ".projectvault", "trash")), "trash is not mirrored");
   assert.ok(fs.existsSync(path.join(nas, "orphan.txt")), "unknown NAS files untouched");
 
   r = await backup.run({ libraryPath: lib, nasPath: nas, deletions: [], onDeletionDone: () => {} });

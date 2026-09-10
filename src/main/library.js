@@ -4,9 +4,9 @@
 //
 // Disk layout
 //   <Library>/
-//     drafthouse.db                      catalogue
-//     .drafthouse/thumbs/<versionId>.png cached previews
-//     .drafthouse/trash/<stamp>/...      deleted files (kept, never purged here)
+//     projectvault.db                      catalogue
+//     .projectvault/thumbs/<versionId>.png cached previews
+//     .projectvault/trash/<stamp>/...      deleted files (kept, never purged here)
 //     <Category>/<Project>/<file>        latest version of every file
 //     <Category>/<Project>/_versions/<itemId>/v<N>/<file>   superseded versions
 //
@@ -52,8 +52,8 @@ async function hashFile(p) {
 
 class Library {
   static async open(root) {
-    await fs.mkdir(path.join(root, ".drafthouse", "thumbs"), { recursive: true });
-    await fs.mkdir(path.join(root, ".drafthouse", "trash"), { recursive: true });
+    await fs.mkdir(path.join(root, ".projectvault", "thumbs"), { recursive: true });
+    await fs.mkdir(path.join(root, ".projectvault", "trash"), { recursive: true });
     const db = await Database.open(root);
     return new Library(root, db);
   }
@@ -61,7 +61,7 @@ class Library {
   constructor(root, db) {
     this.root = root;
     this.db = db;
-    this.thumbDir = path.join(root, ".drafthouse", "thumbs");
+    this.thumbDir = path.join(root, ".projectvault", "thumbs");
   }
 
   close() {
@@ -299,7 +299,7 @@ class Library {
   // ── deletion (always with a reason; files go to trash, NAS handled later) ──
   async trashFile(relpath) {
     const stamp = now().replace(/[:.]/g, "-");
-    const dest = path.join(".drafthouse", "trash", stamp, relpath);
+    const dest = path.join(".projectvault", "trash", stamp, relpath);
     await fs.mkdir(path.dirname(this.abs(dest)), { recursive: true });
     try {
       await fs.rename(this.abs(relpath), this.abs(dest));

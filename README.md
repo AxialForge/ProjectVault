@@ -1,8 +1,8 @@
-# Drafthouse
+# ProjectVault
 
 Every part, every version, one place.
 
-Drafthouse is a personal project library for makers: a Windows desktop app that
+ProjectVault is a personal project library for makers: a Windows desktop app that
 holds CAD files (Fusion 360, SolidWorks, Inventor, FreeCAD), meshes and slicer
 files (STL, OBJ, 3MF, G-code), electronics (KiCad), photos, videos, and documents,
 sorted by project, with version history, notes, custom fields, previews, and a
@@ -10,7 +10,7 @@ one-way mirror to a NAS.
 
 ## How it works
 
-- **The library is a folder Drafthouse owns.** Every file you add is copied in
+- **The library is a folder ProjectVault owns.** Every file you add is copied in
   (never linked), so the folder is self-contained and can be mirrored anywhere.
   Files keep their original names at the top of the project folder so CAD
   assemblies still find their parts.
@@ -35,7 +35,7 @@ one-way mirror to a NAS.
 
 ## Install
 
-Download the latest `drafthouse-<version>-setup.exe` from Releases and run it.
+Download the latest `projectvault-<version>-setup.exe` from Releases and run it.
 It installs per-user with no wizard and updates itself silently from GitHub
 Releases.
 
@@ -51,7 +51,7 @@ npm run vendor      # copy three.js / pdf.js into src/renderer/vendor
 npm run icon        # regenerate assets/icon.png + icon.ico from icon.svg
 npm run dev         # run from source (separate settings from the installed app)
 npm test
-npm run dist        # build dist/drafthouse-<version>-setup.exe
+npm run dist        # build dist/projectvault-<version>-setup.exe
 ```
 
 Dev flags: `--devtools`, `--shot=<file.png>` (capture the window after load),

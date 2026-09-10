@@ -1,4 +1,4 @@
-# Drafthouse — project guide for Claude Code
+# ProjectVault — project guide for Claude Code
 
 Personal CAD/maker project library. Electron desktop app, Windows installer, one
 user. It owns a local library folder (files are copied in, catalogued in SQLite,
@@ -12,12 +12,12 @@ feature description; this file is about how the code is put together.
   renderer. This machine cannot build native modules (see the global memory on
   the Node 24 ClangCL trap) and the installer must work without them.
 - **The library folder is self-contained.** Everything the app knows lives in
-  `<Library>/drafthouse.db` and `<Library>/.drafthouse/`. Copying the folder is a
+  `<Library>/projectvault.db` and `<Library>/.projectvault/`. Copying the folder is a
   complete backup. Files are copied in, never linked or referenced in place.
 - **Original filenames stay at the top of the project folder.** SolidWorks and
   Inventor assemblies resolve parts by filename in the same directory.
 - **Nothing is ever hard-deleted, and every deletion has a reason.** Local delete
-  = move to `.drafthouse/trash/`. NAS side = move to `_Deleted/<stamp>/` and
+  = move to `.projectvault/trash/`. NAS side = move to `_Deleted/<stamp>/` and
   append to `_Deleted/deletions.log`. The NAS is never pruned of files the app
   doesn't know about.
 - **Extracted data is read-only.** The user's own notes/fields are separate.
@@ -34,7 +34,7 @@ npm run icon                # assets/icon.svg -> icon.png + icon.ico
 npm run dev                 # from-source run; userData is "<app>-dev" so it coexists with the installed app
 npm test                    # node --test; pure-Node modules only
 npx electron scripts/smoke.js <lib> <paths...>   # main-process import + extraction check
-npm run dist                # dist/drafthouse-<version>-setup.exe
+npm run dist                # dist/projectvault-<version>-setup.exe
 ```
 
 Node 22+ (24 in use). Electron's bundled Node provides `zlib.zstdDecompressSync`,
@@ -52,7 +52,7 @@ src/main/
   main.js          window, IPC handlers, the lib:// protocol (serves library files to the page, CORS-enabled), backup-on-quit
   preload.js       the api surface exposed to the renderer
   settings.js      settings.json in userData: libraryPath, nasPath, theme, backupOnQuit
-  db.js            sql.js wrapper; schema; debounced flush to drafthouse.db
+  db.js            sql.js wrapper; schema; debounced flush to projectvault.db
   library.js       projects/items/versions/fields/history/search/deletions; disk layout rules
   backup.js        one-way mirror + deletion processing (pure Node, unit-tested)
   updater.js       template silent updater (unchanged)

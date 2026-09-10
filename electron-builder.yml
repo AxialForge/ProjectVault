@@ -1,5 +1,5 @@
-appId: com.axialforge.drafthouse
-productName: Drafthouse
+appId: com.axialforge.projectvault
+productName: ProjectVault
 copyright: Copyright © 2026 AxialForge
 
 directories:
@@ -18,7 +18,7 @@ asarUnpack:
 publish:
   provider: github
   owner: AxialForge
-  repo: Drafthouse
+  repo: ProjectVault
 
 win:
   target:
@@ -34,5 +34,5 @@ nsis:
   allowToChangeInstallationDirectory: false
   createDesktopShortcut: true
   createStartMenuShortcut: true
-  shortcutName: Drafthouse
+  shortcutName: ProjectVault
   artifactName: ${name}-${version}-setup.${ext}

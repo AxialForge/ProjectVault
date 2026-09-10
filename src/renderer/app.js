@@ -531,7 +531,7 @@ async function openSettings() {
     <h3>Maintenance</h3>
     <div class="row"><button class="btn small" id="s-reextract">Re-read all files</button><button class="btn small" id="s-openlib">Open library folder</button><button class="btn small" id="s-deletions">Deletion log</button><span class="spacer"></span><span class="dim small" id="s-version"></span></div>
     <div class="foot"><button class="btn" data-close>Cancel</button><button class="btn primary" id="s-save">Save</button></div>`);
-  api.version().then((v) => ($("#s-version", m.el).textContent = "Drafthouse v" + v));
+  api.version().then((v) => ($("#s-version", m.el).textContent = "ProjectVault v" + v));
   $("#s-lib-browse", m.el).onclick = async () => { const p = await api.pickFolder({ title: "Choose the library folder", defaultPath: s.libraryPath }); if (p) $("#s-lib", m.el).value = p; };
   $("#s-nas-browse", m.el).onclick = async () => { const p = await api.pickFolder({ title: "Choose the NAS mirror folder", defaultPath: s.nasPath }); if (p) $("#s-nas", m.el).value = p; };
   $("#s-reextract", m.el).onclick = async () => { m.close(); await api.reextractAll(); progress(null); toast("Re-read every file", "ok"); if (S.projectId) await loadItems(); runPending(); };
@@ -651,7 +651,7 @@ async function boot() {
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "n") { e.preventDefault(); newProject(); }
   });
   api.on("progress", progress);
-  api.on("update:status", (s) => { if (s?.state === "ready") toast("Update downloaded; it installs when you close Drafthouse", "ok"); });
+  api.on("update:status", (s) => { if (s?.state === "ready") toast("Update downloaded; it installs when you close ProjectVault", "ok"); });
   if (S.info.open) {
     S.fieldDefs = await api.fieldDefs();
     await loadProjects();

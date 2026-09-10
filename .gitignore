@@ -55,7 +55,7 @@ Thumbs.db
 desktop.ini
 .DS_Store
 
-# Drafthouse
+# ProjectVault
 dist/
 test-library/
 assets/icon-*.png
