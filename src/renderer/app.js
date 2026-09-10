@@ -398,7 +398,7 @@ async function renderInspector() {
   else if (it.kind === "video" && ["mp4", "webm", "mov", "m4v"].includes(ext)) prev.innerHTML = `<video src="${url}" controls preload="metadata"></video>`;
   else if (viewer.canView3D(ext)) {
     prev.innerHTML = `<div class="viewer"></div><span class="hint">drag to orbit · wheel to zoom</span>`;
-    viewer.mount($(".viewer", prev), url, ext, dark).then((d) => (S.dispose3d = d)).catch((e) => { prev.innerHTML = v.thumb ? `<img src="${thumbUrl(v.thumb)}">` : kindBadge(it.kind); toast("3D preview failed: " + e.message, "err"); });
+    viewer.mount($(".viewer", prev), url, ext, dark).then((d) => (S.dispose3d = d)).catch((e) => { console.error("3D preview failed", e); prev.innerHTML = v.thumb ? `<img src="${thumbUrl(v.thumb)}">` : kindBadge(it.kind); toast("3D preview failed: " + e.message, "err"); });
   } else if (ext === "pdf") {
     prev.innerHTML = `<canvas></canvas><span class="hint">page 1</span>`;
     viewer.renderPdfPage($("canvas", prev), url, 1, 700).catch(() => {});
@@ -559,20 +559,35 @@ async function openBackup() {
       <div class="k">Pending deletions</div><div class="v">${chk.pending ?? 0}</div>
       <div class="k">Last backup</div><div class="v">${S.settings.lastBackup ? fmtDate(S.settings.lastBackup) : "never"}</div></div>
     <p class="muted small">Copies new and changed files from the library to the NAS. Files you deleted (with a reason) are moved into <b>_Deleted</b> on the NAS and logged. Nothing on the NAS is ever overwritten with a deletion or purged.</p>
+    <div class="hidden" id="b-prog"><div class="progress-bar"><div class="fill" id="b-fill"></div></div><div class="row small muted"><span id="b-count"></span><span class="spacer"></span><span id="b-pct"></span></div><div class="mono small dim" id="b-cur"></div></div>
     <div class="report hidden" id="b-report"></div>
     <div class="foot"><button class="btn" data-close>Close</button><button class="btn primary" id="b-run" ${chk.ok ? "" : "disabled"}>Run backup</button></div>`);
   $("#b-run", m.el).onclick = async () => {
     $("#b-run", m.el).disabled = true;
     const rep = $("#b-report", m.el);
-    rep.classList.remove("hidden");
-    rep.textContent = "Starting…";
-    const off = api.on("backup:progress", (p) => { if (p) rep.textContent = `Copying ${p.done}/${p.total}\n${p.current}`; });
+    const prog = $("#b-prog", m.el);
+    prog.classList.remove("hidden");
+    $("#b-count", m.el).textContent = "Scanning library…";
+    const off = api.on("backup:progress", (p) => {
+      if (!p) return;
+      const pct = p.total ? Math.round((p.done / p.total) * 100) : 0;
+      $("#b-fill", m.el).style.width = pct + "%";
+      $("#b-pct", m.el).textContent = pct + "%";
+      $("#b-count", m.el).textContent = `${p.done} of ${p.total} files checked`;
+      $("#b-cur", m.el).textContent = p.current || "";
+    });
     try {
       const r = await api.backupRun();
       S.settings = await api.settings();
+      $("#b-fill", m.el).style.width = "100%";
+      $("#b-pct", m.el).textContent = "100%";
+      $("#b-count", m.el).textContent = "Finished";
+      $("#b-cur", m.el).textContent = "";
+      rep.classList.remove("hidden");
       rep.textContent = `Done.\n${r.copied} copied (${fmtBytes(r.bytes)})\n${r.skipped} unchanged\n${r.deleted} moved to _Deleted\n${r.errors.length ? "\nErrors:\n" + r.errors.join("\n") : ""}`;
       toast("Backup complete", "ok");
     } catch (err) {
+      rep.classList.remove("hidden");
       rep.textContent = "Backup failed: " + err.message;
       toast("Backup failed: " + err.message, "err");
     } finally {

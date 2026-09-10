@@ -5,7 +5,7 @@ import * as THREE from "./vendor/three.module.js";
 import { OrbitControls } from "./vendor/addons/controls/OrbitControls.js";
 import { STLLoader } from "./vendor/addons/loaders/STLLoader.js";
 import { OBJLoader } from "./vendor/addons/loaders/OBJLoader.js";
-import { ThreeMFLoader } from "./vendor/addons/loaders/3MFLoader.js";
+import * as fflate from "./vendor/addons/libs/fflate.module.js";
 
 const MESH_EXT = new Set(["stl", "obj", "3mf"]);
 export const canView3D = (ext) => MESH_EXT.has(ext);
@@ -26,17 +26,95 @@ async function loadMesh(url, ext) {
     });
     return grp;
   }
-  if (ext === "3mf") {
-    const grp = await new ThreeMFLoader().loadAsync(url);
-    grp.traverse((o) => {
-      if (o.isMesh) {
-        o.material = material(o.material?.color);
-        if (!o.geometry.attributes.normal) o.geometry.computeVertexNormals();
-      }
-    });
-    return grp;
-  }
+  if (ext === "3mf") return load3mf(url);
   throw new Error("unsupported mesh " + ext);
+}
+
+// 3MF reader that handles the Production Extension (objects split across
+// 3D/Objects/*.model, as Bambu Studio and PrusaSlicer write) which three's
+// stock 3MFLoader ignores. Transforms are 3MF's 12-number row-major 3x4.
+async function load3mf(url) {
+  const buf = new Uint8Array(await (await fetch(url)).arrayBuffer());
+  const zip = fflate.unzipSync(buf);
+  const dec = new TextDecoder();
+  const parts = {};
+  for (const name of Object.keys(zip)) if (/\.model$/i.test(name)) parts["/" + name.replace(/^\/+/, "")] = parse3mfModel(dec.decode(zip[name]));
+  const mainName = Object.keys(parts).find((n) => /\/3D\/3dmodel\.model$/i.test(n)) || Object.keys(parts)[0];
+  if (!mainName) throw new Error("no 3D model in 3MF");
+  const root = new THREE.Group();
+  const unitScale = { micron: 0.001, millimeter: 1, centimeter: 10, inch: 25.4, foot: 304.8, meter: 1000 }[parts[mainName].unit] || 1;
+  const place = (partName, objectId, matrix, depth) => {
+    const part = parts[partName];
+    const obj = part?.objects[objectId];
+    if (!obj || depth > 16) return;
+    if (obj.geometry) {
+      const m = new THREE.Mesh(obj.geometry, material());
+      m.applyMatrix4(matrix);
+      root.add(m);
+    }
+    for (const c of obj.components) place(c.path || partName, c.objectid, matrix.clone().multiply(c.matrix), depth + 1);
+  };
+  const main = parts[mainName];
+  const items = main.build.length ? main.build : Object.keys(main.objects).map((id) => ({ objectid: id, matrix: new THREE.Matrix4() }));
+  for (const it of items) place(it.path || mainName, it.objectid, it.matrix, 0);
+  if (!root.children.length) throw new Error("3MF contains no mesh data");
+  root.scale.setScalar(unitScale);
+  return root;
+}
+
+function matrix3mf(s) {
+  const m = new THREE.Matrix4();
+  if (!s) return m;
+  const v = s.trim().split(/\s+/).map(Number);
+  if (v.length !== 12) return m;
+  // 3MF: [m00 m01 m02 m10 m11 m12 m20 m21 m22 tx ty tz], row vectors
+  m.set(v[0], v[3], v[6], v[9], v[1], v[4], v[7], v[10], v[2], v[5], v[8], v[11], 0, 0, 0, 1);
+  return m;
+}
+
+function parse3mfModel(xml) {
+  const doc = new DOMParser().parseFromString(xml, "application/xml");
+  const unit = doc.documentElement.getAttribute("unit") || "millimeter";
+  const objects = {};
+  for (const o of doc.getElementsByTagName("object")) {
+    const id = o.getAttribute("id");
+    const entry = { geometry: null, components: [] };
+    const mesh = o.getElementsByTagName("mesh")[0];
+    if (mesh) {
+      const vs = mesh.getElementsByTagName("vertex");
+      const pos = new Float32Array(vs.length * 3);
+      for (let i = 0; i < vs.length; i++) {
+        pos[i * 3] = +vs[i].getAttribute("x");
+        pos[i * 3 + 1] = +vs[i].getAttribute("y");
+        pos[i * 3 + 2] = +vs[i].getAttribute("z");
+      }
+      const ts = mesh.getElementsByTagName("triangle");
+      const idx = new Uint32Array(ts.length * 3);
+      for (let i = 0; i < ts.length; i++) {
+        idx[i * 3] = +ts[i].getAttribute("v1");
+        idx[i * 3 + 1] = +ts[i].getAttribute("v2");
+        idx[i * 3 + 2] = +ts[i].getAttribute("v3");
+      }
+      if (vs.length && ts.length) {
+        const g = new THREE.BufferGeometry();
+        g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+        g.setIndex(new THREE.BufferAttribute(idx, 1));
+        g.computeVertexNormals();
+        entry.geometry = g;
+      }
+    }
+    for (const c of o.getElementsByTagName("component")) {
+      const path = c.getAttribute("p:path") || c.getAttributeNS("*", "path") || [...c.attributes].find((a) => a.localName === "path")?.value || null;
+      entry.components.push({ path, objectid: c.getAttribute("objectid"), matrix: matrix3mf(c.getAttribute("transform")) });
+    }
+    objects[id] = entry;
+  }
+  const build = [];
+  for (const it of doc.getElementsByTagName("item")) {
+    const path = [...it.attributes].find((a) => a.localName === "path")?.value || null;
+    build.push({ objectid: it.getAttribute("objectid"), path, matrix: matrix3mf(it.getAttribute("transform")) });
+  }
+  return { unit, objects, build };
 }
 
 function material(color) {

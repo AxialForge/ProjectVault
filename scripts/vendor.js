@@ -13,7 +13,6 @@ const files = [
   ["three/examples/jsm/controls/OrbitControls.js", "addons/controls/OrbitControls.js"],
   ["three/examples/jsm/loaders/STLLoader.js", "addons/loaders/STLLoader.js"],
   ["three/examples/jsm/loaders/OBJLoader.js", "addons/loaders/OBJLoader.js"],
-  ["three/examples/jsm/loaders/3MFLoader.js", "addons/loaders/3MFLoader.js"],
   ["three/examples/jsm/libs/fflate.module.js", "addons/libs/fflate.module.js"],
   ["pdfjs-dist/build/pdf.mjs", "pdfjs/pdf.mjs"],
   ["pdfjs-dist/build/pdf.worker.mjs", "pdfjs/pdf.worker.mjs"],
