@@ -2,6 +2,8 @@
 
 Every part, every version, one place.
 
+![Home dashboard](docs/screenshots/home.png)
+
 ProjectVault is a personal project library for makers: a Windows desktop app that
 holds CAD files (Fusion 360, SolidWorks, Inventor, FreeCAD), meshes and slicer
 files (STL, OBJ, 3MF, G-code), electronics (KiCad), photos, videos, and documents,
@@ -37,6 +39,34 @@ one-way mirror to a NAS.
   anything requires a reason; the file goes to the library's trash, and at the
   next backup its NAS copy is moved into a dated `_Deleted/` folder and logged.
   Nothing on the NAS is ever destroyed.
+
+## Screenshots
+
+**Project view with the 3D viewer.** Files are shown as thumbnails pulled from
+the files themselves; STL, OBJ and 3MF open in a rotatable viewer on the right.
+
+![Project view with STL in the 3D viewer](docs/screenshots/project-3d-viewer.png)
+
+**Fusion 360 archive.** The preview is the thumbnail Fusion saved inside the
+`.f3d`; the inspector shows the version timeline, tags, notes, and the data
+extracted from the file.
+
+![Fusion 360 file selected](docs/screenshots/project-fusion.png)
+
+**Alternate layout.** The top-bar button moves the preview below the file grid.
+
+![Preview below layout](docs/screenshots/layout-preview-below.png)
+
+**Tools: Drawing Sheets.** Title pages and section dividers for drawing sets,
+Letter or Ledger, with a live preview. Saved as PDF or added straight into a
+project.
+
+![Drawing Sheets add-in](docs/screenshots/tools-drawing-sheets.png)
+
+**Settings.** Library and NAS paths, theme and accent colour, layout, updates,
+and a library health check that compares the catalogue against the disk.
+
+![Settings page](docs/screenshots/settings.png)
 
 ## Install
 
