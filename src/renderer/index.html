@@ -2,12 +2,12 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self' lib:; img-src 'self' lib: data: blob:; media-src 'self' lib: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; worker-src 'self' blob:; connect-src 'self' lib: blob: data:; font-src 'self' data:" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' lib:; img-src 'self' lib: data: blob:; media-src 'self' lib: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; worker-src 'self' blob:; connect-src 'self' lib: blob: data:; font-src 'self' data:; frame-src 'self' data: blob:" />
   <title>ProjectVault</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-<div class="app" id="app">
+<div class="app" id="app" data-layout="right">
   <aside class="sidebar">
     <div class="brand">
       <img class="brand-icon" src="../../assets/icon.png" alt="" />
@@ -18,18 +18,26 @@
     </div>
     <nav class="nav">
       <button class="nav-item" data-nav="home"><span class="ico">⌂</span>Home</button>
+      <button class="nav-item" data-nav="tools"><span class="ico">⚒</span>Tools</button>
+      <button class="nav-item" data-nav="settings"><span class="ico">⚙</span>Settings</button>
     </nav>
-    <div class="side-head"><span>Projects</span><button class="icon-btn" id="btn-new-project" title="New project">＋</button></div>
+    <div class="side-head"><span>Projects</span><button class="icon-btn" id="btn-new-project" title="New project (Ctrl+N)">＋</button></div>
     <div class="tree" id="tree"></div>
     <div class="sidebar-foot">
       <button class="btn small ghost" id="btn-backup" title="Mirror the library to the NAS">⇪ Backup</button>
       <span class="spacer"></span>
-      <button class="icon-btn" id="btn-settings" title="Settings">⚙</button>
+      <span class="dim small" id="foot-version"></span>
     </div>
   </aside>
 
   <main class="main" id="main">
-    <div class="topbar"><h1 id="title">ProjectVault</h1><div class="topbar-actions" id="top-actions"></div></div>
+    <div class="topbar">
+      <h1 id="title">ProjectVault</h1>
+      <div class="topbar-actions" id="top-actions"></div>
+      <div class="topbar-actions">
+        <button class="icon-btn" id="btn-layout" title="Switch layout: preview beside or below"><span id="layout-ico">◫</span></button>
+      </div>
+    </div>
 
     <section class="page" id="page-setup">
       <div class="setup">
@@ -42,6 +50,9 @@
     </section>
 
     <section class="page" id="page-home"></section>
+    <section class="page" id="page-tools"></section>
+    <section class="page" id="page-settings"></section>
+    <section class="page" id="page-search"></section>
 
     <section class="page" id="page-project">
       <header class="proj-head" id="proj-head"></header>
@@ -50,6 +61,7 @@
         <button class="tab" data-tab="notes">Notes</button>
         <button class="tab" data-tab="fields">Fields</button>
         <button class="tab" data-tab="history">History</button>
+        <button class="tab" data-tab="export">Export</button>
       </div>
       <div class="tab-body" id="tab-files">
         <div class="toolbar">
@@ -66,18 +78,16 @@
       <div class="tab-body hidden" id="tab-notes"><textarea id="proj-notes" placeholder="Project notes, decisions, part sources, lessons learned…"></textarea></div>
       <div class="tab-body hidden" id="tab-fields"></div>
       <div class="tab-body hidden" id="tab-history"></div>
+      <div class="tab-body hidden" id="tab-export"></div>
     </section>
-
-    <section class="page" id="page-search"></section>
   </main>
 
-  <aside class="inspector" id="inspector"><div class="empty">Select a file to see its preview, details and versions.</div></aside>
+  <aside class="inspector" id="inspector"></aside>
 </div>
 
 <div class="progress hidden" id="progress"><div class="bar"><div class="fill" id="progress-fill"></div></div><span id="progress-label"></span></div>
 <div id="toasts"></div>
 <div class="modal-root hidden" id="modal-root"></div>
-<canvas id="offscreen" width="512" height="512" hidden></canvas>
 <script type="module" src="app.js"></script>
 </body>
 </html>

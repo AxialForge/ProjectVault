@@ -171,9 +171,23 @@ function installNow() {
   return { ok: true };
 }
 
+/** Manual "Check now" from the UI. Returns the same status objects as onStatus. */
+async function checkNow() {
+  const { app } = require("electron");
+  if (!app.isPackaged) return { state: "dev", message: "Updates only run in the installed app." };
+  configure();
+  try {
+    const r = await autoUpdater.checkForUpdates();
+    return r?.updateInfo ? { state: "checked", version: r.updateInfo.version } : { state: "current" };
+  } catch (err) {
+    return { state: "error", message: friendlyError(err) };
+  }
+}
+
 module.exports = {
   start,
   installNow,
+  checkNow,
   onStatus,
   // pure helpers, exported for tests / UI:
   compareVersions,

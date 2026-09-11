@@ -7,6 +7,9 @@ const { Settings } = require("./settings");
 const { Library, STATUSES } = require("./library");
 const backup = require("./backup");
 const updater = require("./updater");
+const health = require("./health");
+const exporter = require("./export");
+const sheets = require("./sheets");
 
 const isDev = process.argv.includes("--dev") || !app.isPacked;
 // A from-source run keeps its own settings and single-instance lock so
@@ -47,8 +50,9 @@ function createWindow() {
       spellcheck: true,
     },
   });
-  const itemArg = process.argv.find((a) => a.startsWith("--item="));
-  win.loadFile(path.join(__dirname, "..", "renderer", "index.html"), isDev && itemArg ? { query: { item: itemArg.slice(7) } } : undefined);
+  const q = {};
+  for (const a of process.argv) { const m = /^--(item|page)=(.+)$/.exec(a); if (m && isDev) q[m[1]] = m[2]; }
+  win.loadFile(path.join(__dirname, "..", "renderer", "index.html"), Object.keys(q).length ? { query: q } : undefined);
   win.once("ready-to-show", () => win.show());
   if (isDev) {
     win.webContents.on("console-message", (ev) => console.log("[renderer]", ev.level, ev.message, ev.sourceId + ":" + ev.lineNumber));
@@ -214,6 +218,39 @@ ipcMain.handle("backup:run", async () => {
     backupRunning = false;
   }
 });
+
+ipcMain.handle("library:health", () => health.check(need()));
+ipcMain.handle("update:check", () => updater.checkNow());
+ipcMain.handle("update:install", () => updater.installNow());
+ipcMain.handle("projects:export", async (_e, pid, opts = {}) => {
+  const l = need();
+  const p = l.getProject(pid);
+  const r = await dialog.showSaveDialog(win, { title: "Export project", defaultPath: path.join(app.getPath("documents"), safeFile(p.name) + ".zip"), filters: [{ name: "Zip archive", extensions: ["zip"] }] });
+  if (r.canceled) return null;
+  const out = await exporter.exportProject(l, pid, r.filePath, { ...opts, onProgress: (prog) => send("progress", { label: "Exporting", ...prog }) });
+  send("progress", null);
+  l.log("project.export", path.basename(r.filePath), pid);
+  return out;
+});
+ipcMain.handle("sheets:pdf", async (_e, html, opts) => Buffer.from(await sheets.htmlToPdf(html, opts)));
+ipcMain.handle("sheets:save", async (_e, { html, opts, projectId, filename }) => {
+  const l = need();
+  const pdf = Buffer.from(await sheets.htmlToPdf(html, opts));
+  if (projectId) {
+    const tmp = path.join(app.getPath("temp"), filename);
+    fs.writeFileSync(tmp, pdf);
+    const item = await l.addFile(projectId, tmp);
+    fs.unlinkSync(tmp);
+    return { item };
+  }
+  const r = await dialog.showSaveDialog(win, { title: "Save sheet", defaultPath: path.join(app.getPath("documents"), filename), filters: [{ name: "PDF", extensions: ["pdf"] }] });
+  if (r.canceled) return null;
+  fs.writeFileSync(r.filePath, pdf);
+  return { path: r.filePath };
+});
+function safeFile(s) {
+  return String(s).replace(/[<>:"/\|?* -]/g, "-").trim() || "export";
+}
 
 ipcMain.handle("win:minimize", () => win.minimize());
 ipcMain.handle("win:maximize", () => (win.isMaximized() ? win.unmaximize() : win.maximize()));

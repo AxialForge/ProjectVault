@@ -46,6 +46,12 @@ contextBridge.exposeInMainWorld("api", {
   // backup
   backupRun: invoke("backup:run"),
   backupCheck: invoke("backup:check"),
+  health: invoke("library:health"),
+  checkUpdate: invoke("update:check"),
+  installUpdate: invoke("update:install"),
+  exportProject: invoke("projects:export"),
+  sheetPdf: invoke("sheets:pdf"),
+  sheetSave: invoke("sheets:save"),
   // window
   minimize: invoke("win:minimize"),
   toggleMaximize: invoke("win:maximize"),

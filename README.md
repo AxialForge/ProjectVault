@@ -28,6 +28,11 @@ one-way mirror to a NAS.
   when referenced components are missing from their folder.
 - **Search** covers names, tags, notes, field values, extracted data, and the
   text inside PDFs and Office files.
+- **Tools** hold add-ins. Drawing Sheets makes title pages and section dividers
+  for drawing sets as PDFs (Letter or Ledger) and can drop them straight into a
+  project.
+- **Export** any project as a zip with all files, older versions, thumbnails, a
+  `project.json` and a README, for sharing or archiving.
 - **Backup to NAS** copies new and changed files to a mirror folder. Deleting
   anything requires a reason; the file goes to the library's trash, and at the
   next backup its NAS copy is moved into a dated `_Deleted/` folder and logged.
