@@ -4,6 +4,10 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-09-11
+
+- New home dashboard: quick actions (new project, add files, backup, drawing sheet, search), continue-where-you-left-off card, backup age warning, in-progress projects with progress blocks and covers, recent files, activity feed.
+
 ## [0.2.0] - 2026-09-11
 
 - Nested category folders in the sidebar (Furniture/2nd Bedroom/Project).

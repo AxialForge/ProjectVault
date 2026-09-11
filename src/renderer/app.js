@@ -87,28 +87,64 @@ async function goHome() {
   showPage("home");
   $("#title").textContent = "Home";
   if (!S.info?.open) return;
-  const st = await api.stats();
+  const [st, hist] = await Promise.all([api.stats(), api.history(null, 12)]);
+  const projects = S.projects;
+  const active = projects.filter((p) => p.status === "in-progress").sort((a, b) => b.updated.localeCompare(a.updated));
+  const last = projects.find((p) => p.id === S.settings.lastProjectId);
   const total = Object.values(st.byStatus).reduce((a, b) => a + b, 0) || 1;
   const bar = Object.entries(STATUS).map(([k, [label, color]]) => `<div style="width:${((st.byStatus[k] || 0) / total) * 100}%;background:${color}" title="${label}: ${st.byStatus[k] || 0}"></div>`).join("");
   const legend = Object.entries(STATUS).map(([k, [label, color]]) => `<span><span class="dot" style="background:${color}"></span>${label} ${st.byStatus[k] || 0}</span>`).join("");
-  const kinds = Object.entries(st.byKind).map(([k, n]) => `<span class="pill"><span class="kind">${KIND_LABEL[k]?.[0] || k}</span>${n}</span>`).join(" ");
-  const recent = st.recent.map((it) => `<div class="card" data-open="${it.project_id}:${it.id}">
+  const days = S.settings.lastBackup ? Math.floor((Date.now() - new Date(S.settings.lastBackup)) / 86400000) : null;
+  const backupCls = days === null || days > 7 ? "bad-badge" : days > 2 ? "warn-badge" : "ok-badge";
+  const backupTxt = days === null ? "never backed up" : days === 0 ? "backed up today" : `backed up ${days} day${days === 1 ? "" : "s"} ago`;
+  const projCard = (p) => `<div class="pcard" data-p="${p.id}">
+      <div class="pcover">${p.cover ? `<img src="${thumbUrl(p.cover)}" loading="lazy">` : `<div class="pcover-empty">${esc(p.name.slice(0, 1).toUpperCase())}</div>`}</div>
+      <div class="pbody"><div class="pname" title="${esc(p.name)}">${esc(p.name)}</div>
+        <div class="dim small">${esc(p.category ? p.category.replace(/[\\/]/g, " › ") : "no category")} · ${p.item_count} file${p.item_count === 1 ? "" : "s"}</div>
+        <div class="row" style="margin-top:6px"><div class="blocks mini">${[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => `<span class="${p.progress >= n * 10 ? "on" : ""}"></span>`).join("")}</div><span class="small" style="margin-left:6px">${p.progress}%</span><span class="spacer"></span><span class="pill" style="padding:1px 7px"><span class="dot" style="background:${STATUS[p.status]?.[1]}"></span>${STATUS[p.status]?.[0]}</span></div></div></div>`;
+  const recent = st.recent.slice(0, 8).map((it) => `<div class="card" data-open="${it.project_id}:${it.id}">
       <div class="thumb">${it.thumb ? `<img src="${thumbUrl(it.thumb)}" loading="lazy">` : kindBadge(it.kind)}</div>
       <div class="body"><div class="nm" title="${esc(it.name)}">${esc(it.name)}</div><div class="sub">${esc(it.project_name)} · ${fmtDate(it.updated)}</div></div></div>`).join("");
-  const hist = (await api.history(null, 25)).map(histRow).join("");
   $("#page-home").innerHTML = `
+    <div class="home-top">
+      <div class="quick">
+        <button class="qa" data-qa="new"><span class="qi">＋</span><span><b>New project</b><small>Ctrl+N</small></span></button>
+        <button class="qa" data-qa="add"><span class="qi">⇩</span><span><b>Add files</b><small>${last ? "to " + esc(last.name) : "pick a project"}</small></span></button>
+        <button class="qa" data-qa="backup"><span class="qi">⇪</span><span><b>Backup to NAS</b><small class="${backupCls}">${backupTxt}</small></span></button>
+        <button class="qa" data-qa="sheet"><span class="qi">▤</span><span><b>Drawing sheet</b><small>title or divider PDF</small></span></button>
+        <button class="qa" data-qa="search"><span class="qi">⌕</span><span><b>Search</b><small>Ctrl+K</small></span></button>
+      </div>
+      ${last ? `<div class="continue" data-p="${last.id}"><div class="dim small">Continue where you left off</div><div class="row"><b style="font-size:16px">${esc(last.name)}</b><span class="pill"><span class="dot" style="background:${STATUS[last.status]?.[1]}"></span>${STATUS[last.status]?.[0]}</span></div><div class="dim small">${last.item_count} files · updated ${fmtDate(last.updated)}</div><button class="btn small primary" style="margin-top:8px;align-self:flex-start">Open →</button></div>` : ""}
+    </div>
     <div class="tiles">
       <div class="tile"><div class="v">${st.projects}</div><div class="k">projects</div></div>
+      <div class="tile"><div class="v">${active.length}</div><div class="k">in progress</div></div>
       <div class="tile"><div class="v">${st.items}</div><div class="k">files</div></div>
       <div class="tile"><div class="v">${st.versions}</div><div class="k">versions</div></div>
       <div class="tile"><div class="v">${fmtBytes(st.bytes)}</div><div class="k">in library</div></div>
-      <div class="tile"><div class="v small" style="font-size:14px;margin-top:6px">${S.settings.lastBackup ? fmtDate(S.settings.lastBackup) : "never"}</div><div class="k">last NAS backup</div></div>
     </div>
-    <h3>Projects by status</h3><div class="status-bar">${bar}</div><div class="legend">${legend}</div>
-    <h3>File types</h3><div class="tags">${kinds || '<span class="dim">none yet</span>'}</div>
-    <h3>Recently updated</h3><div class="grid">${recent || '<div class="empty">Nothing yet. Create a project and drop some files in.</div>'}</div>
-    <h3>Recent activity</h3><div class="hist">${hist}</div>`;
-  $$("[data-open]", $("#page-home")).forEach((c) => (c.onclick = () => { const [p, i] = c.dataset.open.split(":"); openProject(+p, +i); }));
+    <div class="status-bar">${bar}</div><div class="legend">${legend}</div>
+    <h3>In progress</h3>
+    <div class="pgrid">${active.slice(0, 8).map(projCard).join("") || '<div class="empty small">Nothing in progress. Set a project status to In progress and it shows here.</div>'}</div>
+    <div class="home-cols">
+      <div><h3>Recently updated files</h3><div class="grid home-recent">${recent || '<div class="empty small">Nothing yet. Create a project and drop some files in.</div>'}</div></div>
+      <div><h3>Activity</h3><div class="hist compact">${hist.map(histRow).join("") || '<div class="empty small">No activity yet</div>'}</div></div>
+    </div>`;
+  const H = $("#page-home");
+  $$("[data-open]", H).forEach((c) => (c.onclick = () => { const [p, i] = c.dataset.open.split(":"); openProject(+p, +i); }));
+  $$(".pcard, .continue", H).forEach((c) => (c.onclick = () => openProject(+c.dataset.p)));
+  $$(".qa", H).forEach((b) => (b.onclick = async () => {
+    const a = b.dataset.qa;
+    if (a === "new") newProject();
+    else if (a === "backup") openBackup();
+    else if (a === "search") { $("#search").focus(); $("#search").select(); }
+    else if (a === "sheet") { if (last) S.project = await api.getProject(last.id); goTools("sheets"); }
+    else if (a === "add") {
+      if (!last) return toast("Open a project first, then add files to it");
+      const files = await api.pickFiles({ title: "Add files to " + last.name });
+      if (files.length) { await addPaths(last.id, files); openProject(last.id); }
+    }
+  }));
 }
 
 function histRow(h) {
@@ -790,7 +826,8 @@ async function boot() {
     await loadProjects();
     const devItem = new URLSearchParams(location.search).get("item");
     const devPage = new URLSearchParams(location.search).get("page");
-    if (devPage === "settings") goSettings();
+    if (devPage === "home") goHome();
+    else if (devPage === "settings") goSettings();
     else if (devPage === "tools") goTools("sheets");
     else if (S.settings.lastProjectId && S.projects.find((p) => p.id === S.settings.lastProjectId)) openProject(S.settings.lastProjectId, devItem ? +devItem : null);
     else goHome();
