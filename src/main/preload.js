@@ -18,6 +18,13 @@ contextBridge.exposeInMainWorld("api", {
   createProject: invoke("projects:create"),
   updateProject: invoke("projects:update"),
   deleteProject: invoke("projects:delete"),
+  listFolders: invoke("folders:list"),
+  createFolder: invoke("folders:create"),
+  moveFolder: invoke("folders:move"),
+  deleteFolder: invoke("folders:delete"),
+  folderNotes: invoke("folders:notes"),
+  folderInfo: invoke("folders:info"),
+  moveProject: invoke("projects:move"),
   // items
   listItems: invoke("items:list"),
   getItem: invoke("items:get"),

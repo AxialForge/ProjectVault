@@ -55,13 +55,21 @@ class Library {
     await fs.mkdir(path.join(root, ".projectvault", "thumbs"), { recursive: true });
     await fs.mkdir(path.join(root, ".projectvault", "trash"), { recursive: true });
     const db = await Database.open(root);
-    return new Library(root, db);
+    const lib = new Library(root, db);
+    lib.migrateCategories();
+    lib.ensureFolders();
+    return lib;
   }
 
   constructor(root, db) {
     this.root = root;
     this.db = db;
     this.thumbDir = path.join(root, ".projectvault", "thumbs");
+  }
+
+  // Older rows stored category with the OS separator; normalise to "/".
+  migrateCategories() {
+    for (const p of this.db.all("SELECT id, category FROM projects WHERE category LIKE '%\\%'")) this.db.run("UPDATE projects SET category=? WHERE id=?", [Library.normPath(p.category), p.id]);
   }
 
   close() {
@@ -74,6 +82,129 @@ class Library {
 
   log(action, detail, projectId = null, itemId = null) {
     this.db.run("INSERT INTO changelog(ts,project_id,item_id,action,detail) VALUES(?,?,?,?,?)", [now(), projectId, itemId, action, detail]);
+  }
+
+  // ── folders (real records; categories are "/"-separated paths) ──
+  // A project's `category` is its folder path with "/" separators, "" = root.
+  // On disk the same path uses the OS separator. Every project's folder is
+  // guaranteed to exist as a record (backfilled on open).
+  static normPath(p) {
+    return String(p || "").split(/[\\/]/).map((s) => safeName(s)).filter((s) => s && s !== "Untitled").join("/");
+  }
+  diskPath(category, name) {
+    const parts = category ? category.split("/") : [];
+    if (name) parts.push(name);
+    return parts.join(path.sep);
+  }
+  ensureFolders() {
+    const cats = this.db.all("SELECT DISTINCT category FROM projects WHERE category!=''").map((r) => Library.normPath(r.category));
+    for (const c of cats) this.ensureFolder(c);
+  }
+  ensureFolder(pathKey) {
+    const parts = pathKey.split("/").filter(Boolean);
+    let cur = "";
+    for (const p of parts) {
+      cur = cur ? cur + "/" + p : p;
+      if (!this.db.get("SELECT id FROM folders WHERE path=?", [cur])) this.db.run("INSERT INTO folders(path,notes,created) VALUES(?,?,?)", [cur, "", now()]);
+    }
+  }
+  listFolders() {
+    return this.db.all("SELECT * FROM folders ORDER BY path COLLATE NOCASE").map((f) => {
+      const under = this.db.get("SELECT COUNT(*) AS n FROM projects WHERE category=? OR category LIKE ?", [f.path, f.path + "/%"]).n;
+      const direct = this.db.get("SELECT COUNT(*) AS n FROM projects WHERE category=?", [f.path]).n;
+      return { ...f, name: f.path.split("/").pop(), parent: f.path.includes("/") ? f.path.slice(0, f.path.lastIndexOf("/")) : "", projects: direct, projectsDeep: under };
+    });
+  }
+  async createFolder(parent, name) {
+    const p = Library.normPath((parent ? parent + "/" : "") + name);
+    if (!p) throw new Error("Folder name is required");
+    if (this.db.get("SELECT id FROM folders WHERE path=?", [p])) throw new Error("That folder already exists");
+    this.ensureFolder(p);
+    await fs.mkdir(this.abs(this.diskPath(p)), { recursive: true });
+    this.log("folder.create", p);
+    return p;
+  }
+  updateFolderNotes(pathKey, notes) {
+    this.db.run("UPDATE folders SET notes=? WHERE path=?", [notes, pathKey]);
+  }
+  // Move/rename a folder: one disk rename, then rewrite every path under it.
+  async moveFolder(oldPath, newPath) {
+    oldPath = Library.normPath(oldPath);
+    newPath = Library.normPath(newPath);
+    if (!oldPath || !newPath || oldPath === newPath) return newPath;
+    if (newPath === oldPath || newPath.startsWith(oldPath + "/")) throw new Error("Cannot move a folder into itself");
+    if (this.db.get("SELECT id FROM folders WHERE path=?", [newPath]) || fss.existsSync(this.abs(this.diskPath(newPath)))) throw new Error("A folder with that name already exists there");
+    const parent = newPath.includes("/") ? newPath.slice(0, newPath.lastIndexOf("/")) : "";
+    if (parent) this.ensureFolder(parent);
+    await fs.mkdir(path.dirname(this.abs(this.diskPath(newPath))), { recursive: true });
+    if (fss.existsSync(this.abs(this.diskPath(oldPath)))) await fs.rename(this.abs(this.diskPath(oldPath)), this.abs(this.diskPath(newPath)));
+    else await fs.mkdir(this.abs(this.diskPath(newPath)), { recursive: true });
+    const oldDisk = this.diskPath(oldPath), newDisk = this.diskPath(newPath);
+    for (const f of this.db.all("SELECT id, path FROM folders WHERE path=? OR path LIKE ?", [oldPath, oldPath + "/%"]))
+      this.db.run("UPDATE folders SET path=? WHERE id=?", [newPath + f.path.slice(oldPath.length), f.id]);
+    for (const p of this.db.all("SELECT id, category, folder FROM projects WHERE category=? OR category LIKE ?", [oldPath, oldPath + "/%"])) {
+      const cat = newPath + p.category.slice(oldPath.length);
+      const folder = newDisk + p.folder.slice(oldDisk.length);
+      this.db.run("UPDATE projects SET category=?, folder=? WHERE id=?", [cat, folder, p.id]);
+      this.rewriteRelpaths(p.id, p.folder, folder);
+    }
+    this.log("folder.move", `${oldPath} → ${newPath}`);
+    return newPath;
+  }
+  async deleteFolder(pathKey) {
+    pathKey = Library.normPath(pathKey);
+    const n = this.db.get("SELECT COUNT(*) AS n FROM projects WHERE category=? OR category LIKE ?", [pathKey, pathKey + "/%"]).n;
+    const sub = this.db.get("SELECT COUNT(*) AS n FROM folders WHERE path LIKE ?", [pathKey + "/%"]).n;
+    if (n || sub) throw new Error("Folder is not empty. Move its projects and sub-folders first.");
+    this.db.run("DELETE FROM folders WHERE path=?", [pathKey]);
+    await fs.rm(this.abs(this.diskPath(pathKey)), { recursive: true, force: true }).catch(() => {});
+    this.log("folder.delete", pathKey);
+  }
+  rewriteRelpaths(projectId, oldFolder, newFolder) {
+    const rows = this.db.all("SELECT v.id, v.relpath FROM versions v JOIN items i ON i.id=v.item_id WHERE i.project_id=?", [projectId]);
+    for (const v of rows) {
+      if (v.relpath === oldFolder || v.relpath.startsWith(oldFolder + path.sep)) this.db.run("UPDATE versions SET relpath=? WHERE id=?", [newFolder + v.relpath.slice(oldFolder.length), v.id]);
+    }
+  }
+  // Move a project to another folder (disk rename + path rewrite).
+  async moveProject(id, category) {
+    const p = this.getProject(id);
+    if (!p) throw new Error("project not found");
+    category = Library.normPath(category);
+    if (category === p.category) return p;
+    if (category) this.ensureFolder(category);
+    let target = this.diskPath(category, p.name);
+    let n = 2;
+    while (this.db.get("SELECT id FROM projects WHERE folder=? AND id!=?", [target, id]) || fss.existsSync(this.abs(target))) target = this.diskPath(category, p.name) + ` (${n++})`;
+    await fs.mkdir(path.dirname(this.abs(target)) || this.root, { recursive: true });
+    if (fss.existsSync(this.abs(p.folder))) await fs.rename(this.abs(p.folder), this.abs(target));
+    else await fs.mkdir(this.abs(target), { recursive: true });
+    this.db.run("UPDATE projects SET category=?, folder=?, updated=? WHERE id=?", [category, target, now(), id]);
+    this.rewriteRelpaths(id, p.folder, target);
+    this.log("project.move", `${p.category || "(root)"} → ${category || "(root)"}`, id);
+    return this.getProject(id);
+  }
+  // Rename a project: renames its disk folder too.
+  async renameProject(id, name) {
+    const p = this.getProject(id);
+    name = safeName(name);
+    if (!p || name === p.name) return p;
+    let target = this.diskPath(p.category, name);
+    let n = 2;
+    while (this.db.get("SELECT id FROM projects WHERE folder=? AND id!=?", [target, id]) || fss.existsSync(this.abs(target))) target = this.diskPath(p.category, name) + ` (${n++})`;
+    if (fss.existsSync(this.abs(p.folder))) await fs.rename(this.abs(p.folder), this.abs(target));
+    this.db.run("UPDATE projects SET name=?, folder=?, updated=? WHERE id=?", [name, target, now(), id]);
+    this.rewriteRelpaths(id, p.folder, target);
+    return this.getProject(id);
+  }
+  folderInfo(pathKey) {
+    pathKey = Library.normPath(pathKey);
+    const f = this.db.get("SELECT * FROM folders WHERE path=?", [pathKey]) || { path: pathKey, notes: "" };
+    const projects = this.db.all("SELECT id, name, status, progress, category, updated FROM projects WHERE category=? OR category LIKE ? ORDER BY category, name COLLATE NOCASE", [pathKey, pathKey + "/%"]);
+    const size = this.db.get("SELECT COALESCE(SUM(v.size),0) AS b, COUNT(*) AS n FROM versions v JOIN items i ON i.id=v.item_id JOIN projects p ON p.id=i.project_id WHERE p.category=? OR p.category LIKE ?", [pathKey, pathKey + "/%"]);
+    const byStatus = {};
+    for (const p of projects) byStatus[p.status] = (byStatus[p.status] || 0) + 1;
+    return { ...f, projects, files: size.n, bytes: size.b, byStatus, disk: this.abs(this.diskPath(pathKey)) };
   }
 
   // ── projects ──────────────────────────────────────────────────
@@ -92,11 +223,12 @@ class Library {
 
   async createProject({ name, category = "", status = "idea", description = "" }) {
     name = safeName(name);
-    category = category.split(/[\\/]/).map(safeName).filter((s) => s !== "Untitled").join(path.sep);
-    let folder = category ? path.join(category, name) : name;
+    category = Library.normPath(category);
+    if (category) this.ensureFolder(category);
+    let folder = this.diskPath(category, name);
     let n = 2;
     while (this.db.get("SELECT id FROM projects WHERE folder=?", [folder]) || fss.existsSync(this.abs(folder))) {
-      folder = (category ? path.join(category, name) : name) + ` (${n++})`;
+      folder = this.diskPath(category, name) + ` (${n++})`;
     }
     await fs.mkdir(this.abs(folder), { recursive: true });
     const t = now();
@@ -106,8 +238,10 @@ class Library {
     return this.getProject(id);
   }
 
-  updateProject(id, patch) {
-    const allowed = ["name", "category", "status", "progress", "description", "notes", "tags", "fields"];
+  async updateProject(id, patch) {
+    if ("category" in patch) await this.moveProject(id, patch.category);
+    if ("name" in patch) await this.renameProject(id, patch.name);
+    const allowed = ["status", "progress", "description", "notes", "tags", "fields"];
     const sets = [], vals = [];
     for (const k of allowed) {
       if (!(k in patch)) continue;

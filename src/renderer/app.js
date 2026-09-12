@@ -24,7 +24,7 @@ const ACCENTS = { indigo: ["#7c8cff", "#2fd6c8"], teal: ["#2fd6c8", "#7c8cff"], 
 
 const S = {
   settings: {}, info: null, projects: [], projectId: null, project: null, items: [], itemId: null, versionId: null,
-  tab: "files", view: "grid", sort: "name", kindFilter: "", fieldDefs: [], collapsed: new Set(), dispose3d: null, page: "home",
+  tab: "files", view: "grid", sort: "name", kindFilter: "", fieldDefs: [], collapsed: new Set(), dispose3d: null, page: "home", folders: [], structSel: "",
 };
 
 // ── toasts / progress / modals ─────────────────────────────────
@@ -100,7 +100,7 @@ async function goHome() {
   const projCard = (p) => `<div class="pcard" data-p="${p.id}">
       <div class="pcover">${p.cover ? `<img src="${thumbUrl(p.cover)}" loading="lazy">` : `<div class="pcover-empty">${esc(p.name.slice(0, 1).toUpperCase())}</div>`}</div>
       <div class="pbody"><div class="pname" title="${esc(p.name)}">${esc(p.name)}</div>
-        <div class="dim small">${esc(p.category ? p.category.replace(/[\\/]/g, " › ") : "no category")} · ${p.item_count} file${p.item_count === 1 ? "" : "s"}</div>
+        <div class="dim small">${esc(p.category ? p.category.replace(/\//g, " › ") : "no category")} · ${p.item_count} file${p.item_count === 1 ? "" : "s"}</div>
         <div class="row" style="margin-top:6px"><div class="blocks mini">${[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => `<span class="${p.progress >= n * 10 ? "on" : ""}"></span>`).join("")}</div><span class="small" style="margin-left:6px">${p.progress}%</span><span class="spacer"></span><span class="pill" style="padding:1px 7px"><span class="dot" style="background:${STATUS[p.status]?.[1]}"></span>${STATUS[p.status]?.[0]}</span></div></div></div>`;
   const recent = st.recent.slice(0, 8).map((it) => `<div class="card" data-open="${it.project_id}:${it.id}">
       <div class="thumb">${it.thumb ? `<img src="${thumbUrl(it.thumb)}" loading="lazy">` : kindBadge(it.kind)}</div>
@@ -156,11 +156,15 @@ function kindBadge(kind) {
 
 // ── sidebar tree (nested categories: "Furniture/2nd Bedroom") ──
 async function loadProjects() {
-  S.projects = await api.listProjects();
+  [S.projects, S.folders] = await Promise.all([api.listProjects(), api.listFolders()]);
   renderTree();
 }
 function buildTree() {
   const root = { groups: {}, projects: [] };
+  for (const f of S.folders) {
+    let node = root;
+    for (const s of f.path.split("/")) node = node.groups[s] ||= { groups: {}, projects: [] };
+  }
   for (const p of S.projects) {
     const segs = (p.category || "").split(/[\\/]/).filter(Boolean);
     let node = root;
@@ -171,12 +175,12 @@ function buildTree() {
 }
 function renderTreeNode(node, pathKey) {
   const groups = Object.keys(node.groups).sort((a, b) => a.localeCompare(b));
-  const projs = node.projects.map((p) => `<div class="tree-item ${p.id === S.projectId ? "active" : ""}" data-id="${p.id}" title="${esc(p.name)}">
+  const projs = node.projects.map((p) => `<div class="tree-item ${p.id === S.projectId ? "active" : ""}" data-id="${p.id}" draggable="true" title="${esc(p.name)}">
       <span class="dot" style="background:${STATUS[p.status]?.[1] || "#888"}"></span><span class="nm">${esc(p.name)}</span><span class="cnt">${p.item_count}</span></div>`).join("");
   const subs = groups.map((g) => {
     const key = pathKey ? pathKey + "/" + g : g;
     return `<div class="tree-group ${S.collapsed.has(key) ? "collapsed" : ""}" data-cat="${esc(key)}">
-      <div class="tree-group-head"><span class="car">▼</span>${esc(g)}</div>
+      <div class="tree-group-head" data-folder="${esc(key)}"><span class="car">▼</span>${esc(g)}</div>
       <div class="tree-items">${renderTreeNode(node.groups[g], key)}</div></div>`;
   }).join("");
   return projs + subs;
@@ -184,12 +188,24 @@ function renderTreeNode(node, pathKey) {
 function renderTree() {
   const tree = buildTree();
   $("#tree").innerHTML = renderTreeNode(tree, "") || '<div class="empty small">No projects yet</div>';
-  $$(".tree-group-head").forEach((h) => (h.onclick = () => { const c = h.parentElement.dataset.cat; S.collapsed.has(c) ? S.collapsed.delete(c) : S.collapsed.add(c); h.parentElement.classList.toggle("collapsed"); }));
+  $$(".tree-group-head").forEach((h) => {
+    h.onclick = () => { const c = h.parentElement.dataset.cat; S.collapsed.has(c) ? S.collapsed.delete(c) : S.collapsed.add(c); h.parentElement.classList.toggle("collapsed"); };
+    h.ondblclick = () => goStructure(h.dataset.folder);
+    h.ondragover = (e) => { if ([...e.dataTransfer.types].includes("text/pv")) { e.preventDefault(); h.classList.add("drop-target"); } };
+    h.ondragleave = () => h.classList.remove("drop-target");
+    h.ondrop = async (e) => {
+      e.preventDefault(); h.classList.remove("drop-target");
+      const d = e.dataTransfer.getData("text/pv");
+      if (!d.startsWith("p:")) return;
+      try { await api.moveProject(+d.slice(2), h.dataset.folder); await loadProjects(); if (S.projectId === +d.slice(2)) openProject(S.projectId); toast("Moved to " + h.dataset.folder, "ok"); } catch (err) { toast(err.message, "err"); }
+    };
+  });
   $$(".tree-item").forEach((el) => {
     el.onclick = () => openProject(+el.dataset.id);
-    el.ondragover = (e) => { e.preventDefault(); el.classList.add("drop-target"); };
+    el.ondragstart = (e) => { e.dataTransfer.setData("text/pv", "p:" + el.dataset.id); e.dataTransfer.effectAllowed = "move"; };
+    el.ondragover = (e) => { if (e.dataTransfer.types.includes("Files")) { e.preventDefault(); el.classList.add("drop-target"); } };
     el.ondragleave = () => el.classList.remove("drop-target");
-    el.ondrop = (e) => { e.preventDefault(); el.classList.remove("drop-target"); dropFiles(e, +el.dataset.id); };
+    el.ondrop = (e) => { e.preventDefault(); el.classList.remove("drop-target"); if (e.dataTransfer.files.length) dropFiles(e, +el.dataset.id); };
   });
 }
 function categoryList() {
@@ -204,7 +220,7 @@ async function openProject(id, itemId = null) {
   showPage("project");
   S.projectId = id;
   renderTree();
-  $("#title").textContent = (S.project.category ? S.project.category.replace(/[\\/]/g, " › ") + " › " : "") + S.project.name;
+  $("#title").textContent = (S.project.category ? S.project.category.replace(/\//g, " › ") + " › " : "") + S.project.name;
   $("#top-actions").innerHTML = `<button class="btn small" id="btn-open-folder">Open folder</button><button class="btn small danger" id="btn-del-project">Delete project</button>`;
   $("#btn-open-folder").onclick = () => api.openPath(S.project.folder);
   $("#btn-del-project").onclick = async () => {
@@ -235,17 +251,16 @@ function renderProjectHead() {
     </div>
     <div class="col" style="align-items:flex-end">
       <div class="meta">
-        <span class="dim small">Category</span><input type="text" id="p-cat" list="cat-list" value="${esc(p.category)}" style="width:190px" placeholder="Furniture/2nd Bedroom" title="Use / for sub-folders" />
-        <datalist id="cat-list">${categoryList().map((c) => `<option value="${esc(c)}">`).join("")}</datalist>
+        <span class="dim small">Folder</span><select id="p-cat" style="width:220px">${folderOptions(p.category)}</select>
         <select id="p-status">${Object.entries(STATUS).map(([k, [l]]) => `<option value="${k}" ${p.status === k ? "selected" : ""}>${l}</option>`).join("")}</select>
       </div>
       <div class="progress-wrap"><span class="dim small">Progress</span>${progressBlocks(p.progress)}</div>
       <div class="dim small">Created ${fmtDate(p.created)} · Updated ${fmtDate(p.updated)}</div>
     </div>`;
-  const save = debounce(async (patch) => { S.project = await api.updateProject(p.id, patch); $("#title").textContent = (S.project.category ? S.project.category.replace(/[\\/]/g, " › ") + " › " : "") + S.project.name; loadProjects(); }, 400);
+  const save = debounce(async (patch) => { S.project = await api.updateProject(p.id, patch); $("#title").textContent = (S.project.category ? S.project.category.replace(/\//g, " › ") + " › " : "") + S.project.name; loadProjects(); }, 400);
   $("#p-name").oninput = (e) => save({ name: e.target.value });
   $("#p-desc").oninput = (e) => save({ description: e.target.value });
-  $("#p-cat").onchange = (e) => save({ category: e.target.value });
+  bindFolderSelect($("#p-cat"), (cat) => api.updateProject(p.id, { category: cat }).then((np) => { S.project = np; loadProjects(); $("#title").textContent = (np.category ? np.category.replace(/\//g, " › ") + " › " : "") + np.name; }));
   $("#p-status").onchange = (e) => save({ status: e.target.value });
   $$("#p-blocks button").forEach((b) => (b.onclick = () => {
     const n = +b.dataset.n;
@@ -613,6 +628,161 @@ function goTools(addinId = null) {
   addin.render(page, { api, project: S.project && S.projects.find((p) => p.id === S.project.id) ? S.project : null, projects: S.projects, toast, refresh: () => loadProjects() });
 }
 
+// ── structure page (folder tree editor) ─────────────────────────
+function folderOptions(selected) {
+  const opts = [`<option value="" ${!selected ? "selected" : ""}>(library root)</option>`];
+  for (const f of S.folders) opts.push(`<option value="${esc(f.path)}" ${f.path === selected ? "selected" : ""}>${esc(f.path.replace(/\//g, " › "))}</option>`);
+  opts.push(`<option value="__new__">＋ New folder…</option>`);
+  return opts.join("");
+}
+async function promptFolder(parent) {
+  return new Promise((resolve) => {
+    const m = modal(`<h2>New folder</h2>
+      <div class="field"><label>Inside</label><select id="nf-parent">${folderOptions(parent).replace(/<option value="__new__">.*?<\/option>/, "")}</select></div>
+      <div class="field"><label>Folder name</label><input type="text" id="nf-name" placeholder="e.g. 2nd Bedroom" /></div>
+      <p class="dim small">You can also type a path like <span class="mono">Furniture/2nd Bedroom</span> to make several levels at once.</p>
+      <div class="foot"><button class="btn" data-close>Cancel</button><button class="btn primary" id="nf-ok">Create</button></div>`);
+    $("[data-close]", m.el).addEventListener("click", () => resolve(null));
+    m.root.addEventListener("click", (e) => { if (e.target === m.root) resolve(null); });
+    const ok = async () => {
+      const name = $("#nf-name", m.el).value.trim();
+      if (!name) return $("#nf-name", m.el).focus();
+      try {
+        const p = await api.createFolder($("#nf-parent", m.el).value, name);
+        m.close();
+        await loadProjects();
+        resolve(p);
+      } catch (err) { toast(err.message, "err"); }
+    };
+    $("#nf-ok", m.el).onclick = ok;
+    m.el.onkeydown = (e) => { if (e.key === "Enter") ok(); };
+  });
+}
+// Wire a <select> built by folderOptions so "New folder…" opens the prompt.
+function bindFolderSelect(sel, onChange) {
+  let prev = sel.value;
+  sel.onchange = async () => {
+    if (sel.value === "__new__") {
+      const p = await promptFolder(prev);
+      sel.innerHTML = folderOptions(p ?? prev);
+      sel.value = p ?? prev;
+      if (p) { prev = p; onChange(p); }
+      return;
+    }
+    prev = sel.value;
+    onChange(sel.value);
+  };
+}
+
+function structTreeHtml() {
+  const kids = (parent) => S.folders.filter((f) => f.parent === parent && f.path !== parent).sort((a, b) => a.name.localeCompare(b.name));
+  const projs = (cat) => S.projects.filter((p) => (p.category || "") === cat).sort((a, b) => a.name.localeCompare(b.name));
+  const node = (folder) => {
+    const key = folder.path;
+    return `<div class="st-folder ${S.collapsed.has("st:" + key) ? "collapsed" : ""} ${S.structSel === key ? "sel" : ""}" data-path="${esc(key)}">
+      <div class="st-row st-fhead" draggable="true" data-folder="${esc(key)}"><span class="car">▼</span><span class="fico">▰</span><span class="nm">${esc(folder.name)}</span><span class="cnt">${folder.projectsDeep}</span></div>
+      <div class="st-kids">${kids(key).map(node).join("")}${projs(key).map(leaf).join("")}</div></div>`;
+  };
+  const leaf = (p) => `<div class="st-row st-proj ${S.structSel === "p:" + p.id ? "sel" : ""}" draggable="true" data-project="${p.id}"><span class="dot" style="background:${STATUS[p.status]?.[1]}"></span><span class="nm">${esc(p.name)}</span><span class="cnt">${p.item_count}</span></div>`;
+  return `<div class="st-root st-fhead st-row ${S.structSel === "" ? "sel" : ""}" data-folder=""><span class="fico">⌂</span><span class="nm">Library</span></div>
+    <div class="st-kids">${kids("").map(node).join("")}${projs("").map(leaf).join("")}</div>`;
+}
+
+async function goStructure(sel = S.structSel ?? "") {
+  showPage("structure");
+  $("#title").textContent = "Structure";
+  S.structSel = sel;
+  $("#top-actions").innerHTML = `<button class="btn small" id="st-new">＋ New folder</button>`;
+  $("#st-new").onclick = async () => { const p = await promptFolder(typeof S.structSel === "string" && !S.structSel.startsWith("p:") ? S.structSel : ""); if (p) goStructure(p); };
+  const page = $("#page-structure");
+  page.innerHTML = `<div class="struct">
+    <div class="st-tree" id="st-tree">${structTreeHtml()}</div>
+    <div class="st-info" id="st-info"></div></div>`;
+  const tree = $("#st-tree");
+  $$(".st-fhead .car", tree).forEach((c) => (c.onclick = (e) => { e.stopPropagation(); const el = c.closest(".st-folder"); const k = "st:" + el.dataset.path; S.collapsed.has(k) ? S.collapsed.delete(k) : S.collapsed.add(k); el.classList.toggle("collapsed"); }));
+  $$(".st-fhead", tree).forEach((h) => (h.onclick = () => goStructure(h.dataset.folder)));
+  $$(".st-proj", tree).forEach((h) => { h.onclick = () => goStructure("p:" + h.dataset.project); h.ondblclick = () => openProject(+h.dataset.project); });
+  // drag & drop: projects and folders onto folders (or the root)
+  $$("[draggable]", tree).forEach((el) => (el.ondragstart = (e) => {
+    e.dataTransfer.setData("text/pv", el.dataset.project ? "p:" + el.dataset.project : "f:" + el.dataset.folder);
+    e.dataTransfer.effectAllowed = "move";
+  }));
+  $$(".st-fhead", tree).forEach((h) => {
+    h.ondragover = (e) => { if ([...e.dataTransfer.types].includes("text/pv")) { e.preventDefault(); h.classList.add("drop-target"); } };
+    h.ondragleave = () => h.classList.remove("drop-target");
+    h.ondrop = async (e) => {
+      e.preventDefault(); h.classList.remove("drop-target");
+      const data = e.dataTransfer.getData("text/pv");
+      const target = h.dataset.folder;
+      try {
+        if (data.startsWith("p:")) await api.moveProject(+data.slice(2), target);
+        else if (data.startsWith("f:")) { const from = data.slice(2); if (from === target) return; await api.moveFolder(from, (target ? target + "/" : "") + from.split("/").pop()); }
+        await loadProjects();
+        goStructure(target);
+        toast("Moved", "ok");
+      } catch (err) { toast(err.message, "err"); }
+    };
+  });
+  renderStructInfo();
+}
+
+async function renderStructInfo() {
+  const box = $("#st-info");
+  const sel = S.structSel ?? "";
+  if (typeof sel === "string" && sel.startsWith("p:")) {
+    const p = S.projects.find((x) => x.id === +sel.slice(2));
+    if (!p) return (box.innerHTML = "");
+    box.innerHTML = `<div class="card-sec"><h2>${esc(p.name)}</h2>
+      <div class="kv"><div class="k">In folder</div><div class="v">${esc(p.category ? p.category.replace(/\//g, " › ") : "(library root)")}</div>
+        <div class="k">On disk</div><div class="v mono">${esc(S.info.path + "\\" + p.folder)}</div>
+        <div class="k">Status</div><div class="v">${STATUS[p.status]?.[0]} · ${p.progress}%</div><div class="k">Files</div><div class="v">${p.item_count}</div></div>
+      <div class="field" style="margin-top:12px"><label>Move to folder</label><select id="st-move">${folderOptions(p.category)}</select></div>
+      <div class="row"><button class="btn primary small" id="st-open">Open project</button></div></div>`;
+    bindFolderSelect($("#st-move", box), async (cat) => { await api.moveProject(p.id, cat); await loadProjects(); goStructure("p:" + p.id); toast("Moved", "ok"); });
+    $("#st-open", box).onclick = () => openProject(p.id);
+    return;
+  }
+  const info = await api.folderInfo(sel);
+  const isRoot = !sel;
+  const legend = Object.entries(STATUS).filter(([k]) => info.byStatus[k]).map(([k, [l, c]]) => `<span><span class="dot" style="background:${c}"></span>${l} ${info.byStatus[k]}</span>`).join("");
+  box.innerHTML = `<div class="card-sec">
+    <div class="row"><h2 style="margin:0">${isRoot ? "Library root" : esc(info.path.replace(/\//g, " › "))}</h2><span class="spacer"></span>
+      ${isRoot ? "" : `<button class="btn small" id="st-rename">Rename</button><button class="btn small" id="st-sub">＋ Sub-folder</button><button class="btn small danger" id="st-del" ${info.projects.length ? "disabled title='Folder is not empty'" : ""}>Delete</button>`}</div>
+    <div class="kv" style="margin-top:10px">
+      <div class="k">On disk</div><div class="v mono">${esc(info.disk)}</div>
+      <div class="k">On NAS</div><div class="v mono">${esc(S.settings.nasPath ? S.settings.nasPath + (sel ? "\\" + sel.replace(/\//g, "\\") : "") : "(no NAS path set)")}</div>
+      <div class="k">Projects</div><div class="v">${info.projects.length} (including sub-folders)</div>
+      <div class="k">Files</div><div class="v">${info.files} · ${fmtBytes(info.bytes)}</div>
+      ${legend ? `<div class="k">Status</div><div class="v legend">${legend}</div>` : ""}</div>
+    ${isRoot ? "" : `<h3>Folder notes</h3><textarea id="st-notes" rows="3" placeholder="What goes in this folder…">${esc(info.notes)}</textarea>`}
+    <h3>Projects here</h3>
+    <div class="st-plist">${info.projects.map((p) => `<div class="result" data-p="${p.id}"><span class="dot" style="width:9px;height:9px;border-radius:50%;background:${STATUS[p.status]?.[1]};flex-shrink:0"></span><div><b>${esc(p.name)}</b><div class="dim small">${esc(p.category && p.category !== sel ? p.category.slice(sel ? sel.length + 1 : 0).replace(/\//g, " › ") + " · " : "")}${p.progress}% · ${fmtDate(p.updated)}</div></div></div>`).join("") || '<div class="dim small">No projects in this folder yet. Drag one here from the tree, or create one and pick this folder.</div>'}</div>
+    <div class="row" style="margin-top:12px"><button class="btn small" id="st-newproj">＋ New project here</button><button class="btn small" id="st-explorer">Show in Explorer</button></div>
+  </div>
+  <p class="dim small">Drag projects or folders in the tree to move them. Renaming or moving a folder moves it on disk too; every file path is updated. Files always live inside a project, never loose in a folder.</p>`;
+  $$(".result", box).forEach((r) => (r.onclick = () => openProject(+r.dataset.p)));
+  $("#st-newproj", box).onclick = () => newProject(sel);
+  $("#st-explorer", box).onclick = () => api.openPath(sel.replace(/\//g, "\\"));
+  if (!isRoot) {
+    $("#st-notes", box).oninput = debounce(() => api.folderNotes(sel, $("#st-notes", box).value), 400);
+    $("#st-sub", box).onclick = async () => { const p = await promptFolder(sel); if (p) goStructure(p); };
+    $("#st-rename", box).onclick = () => {
+      const m = modal(`<h2>Rename folder</h2><div class="field"><label>Name</label><input type="text" id="rn" value="${esc(info.path.split("/").pop())}" /></div><div class="foot"><button class="btn" data-close>Cancel</button><button class="btn primary" id="rn-ok">Rename</button></div>`);
+      const ok = async () => {
+        const name = $("#rn", m.el).value.trim();
+        if (!name) return;
+        const parent = sel.includes("/") ? sel.slice(0, sel.lastIndexOf("/")) + "/" : "";
+        try { const np = await api.moveFolder(sel, parent + name); m.close(); await loadProjects(); goStructure(np); toast("Renamed", "ok"); } catch (err) { toast(err.message, "err"); }
+      };
+      $("#rn-ok", m.el).onclick = ok;
+      m.el.onkeydown = (e) => { if (e.key === "Enter") ok(); };
+    };
+    $("#st-del", box).onclick = async () => {
+      try { await api.deleteFolder(sel); await loadProjects(); goStructure(sel.includes("/") ? sel.slice(0, sel.lastIndexOf("/")) : ""); toast("Folder deleted", "ok"); } catch (err) { toast(err.message, "err"); }
+    };
+  }
+}
+
 // ── settings page ──────────────────────────────────────────────
 async function goSettings() {
   showPage("settings");
@@ -732,11 +902,11 @@ async function openBackup() {
   };
 }
 
-function newProject() {
-  const cats = categoryList();
+function newProject(presetFolder = "") {
+  const preset = presetFolder || (S.project ? S.project.category : "");
   const m = modal(`<h2>New project</h2>
     <div class="field"><label>Name</label><input type="text" id="np-name" placeholder="e.g. Night Stand Tall" /></div>
-    <div class="field"><label>Category folder (optional). Use / for sub-folders</label><input type="text" id="np-cat" list="np-cats" placeholder="e.g. Furniture/2nd Bedroom" /><datalist id="np-cats">${cats.map((c) => `<option value="${esc(c)}">`).join("")}</datalist></div>
+    <div class="field"><label>Folder</label><select id="np-cat">${folderOptions(preset)}</select></div>
     <div class="field"><label>Status</label><select id="np-status">${Object.entries(STATUS).map(([k, [l]]) => `<option value="${k}">${l}</option>`).join("")}</select></div>
     <div class="field"><label>Description</label><input type="text" id="np-desc" /></div>
     <div class="foot"><button class="btn" data-close>Cancel</button><button class="btn primary" id="np-ok">Create</button></div>`);
@@ -748,8 +918,9 @@ function newProject() {
     await loadProjects();
     openProject(p.id);
   };
+  bindFolderSelect($("#np-cat", m.el), () => {});
   $("#np-ok", m.el).onclick = ok;
-  m.el.onkeydown = (e) => { if (e.key === "Enter" && e.target.tagName !== "TEXTAREA") ok(); };
+  m.el.onkeydown = (e) => { if (e.key === "Enter" && e.target.tagName !== "TEXTAREA" && e.target.tagName !== "SELECT") ok(); };
 }
 
 // ── theme / layout / boot ──────────────────────────────────────
@@ -789,6 +960,7 @@ async function boot() {
   $("#setup-open").onclick = () => { const p = $("#setup-path").value.trim(); if (p) openLibrary(p); };
   $("[data-nav=home]").onclick = goHome;
   $("[data-nav=tools]").onclick = () => goTools();
+  $("[data-nav=structure]").onclick = () => goStructure();
   $("[data-nav=settings]").onclick = goSettings;
   $("#btn-new-project").onclick = newProject;
   $("#btn-backup").onclick = openBackup;
@@ -827,6 +999,7 @@ async function boot() {
     const devItem = new URLSearchParams(location.search).get("item");
     const devPage = new URLSearchParams(location.search).get("page");
     if (devPage === "home") goHome();
+    else if (devPage === "structure") goStructure(new URLSearchParams(location.search).get("sel") || "");
     else if (devPage === "settings") goSettings();
     else if (devPage === "tools") goTools("sheets");
     else if (S.settings.lastProjectId && S.projects.find((p) => p.id === S.settings.lastProjectId)) openProject(S.settings.lastProjectId, devItem ? +devItem : null);

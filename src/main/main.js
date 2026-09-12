@@ -51,7 +51,7 @@ function createWindow() {
     },
   });
   const q = {};
-  for (const a of process.argv) { const m = /^--(item|page)=(.+)$/.exec(a); if (m && isDev) q[m[1]] = m[2]; }
+  for (const a of process.argv) { const m = /^--(item|page|sel)=(.+)$/.exec(a); if (m && isDev) q[m[1]] = m[2]; }
   win.loadFile(path.join(__dirname, "..", "renderer", "index.html"), Object.keys(q).length ? { query: q } : undefined);
   win.once("ready-to-show", () => win.show());
   if (isDev) {
@@ -130,6 +130,13 @@ ipcMain.handle("projects:create", (_e, data) => need().createProject(data));
 ipcMain.handle("projects:update", (_e, id, patch) => need().updateProject(id, patch));
 ipcMain.handle("projects:delete", (_e, id, reason) => need().deleteProject(id, reason));
 
+ipcMain.handle("folders:list", () => need().listFolders());
+ipcMain.handle("folders:create", (_e, parent, name) => need().createFolder(parent, name));
+ipcMain.handle("folders:move", (_e, from, to) => need().moveFolder(from, to));
+ipcMain.handle("folders:delete", (_e, p) => need().deleteFolder(p));
+ipcMain.handle("folders:notes", (_e, p, notes) => need().updateFolderNotes(p, notes));
+ipcMain.handle("folders:info", (_e, p) => need().folderInfo(p));
+ipcMain.handle("projects:move", (_e, id, category) => need().moveProject(id, category));
 ipcMain.handle("items:list", (_e, pid) => need().listItems(pid));
 ipcMain.handle("items:get", (_e, id) => need().getItem(id));
 ipcMain.handle("items:update", (_e, id, patch) => need().updateItem(id, patch));

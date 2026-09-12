@@ -261,6 +261,26 @@ h3 { margin: 14px 0 6px; font-size: 12px; text-transform: uppercase; letter-spac
 .field-row input[type="checkbox"] { width: auto; justify-self: start; }
 .warnbox { background: rgba(255, 209, 102, 0.1); border: 1px solid rgba(255, 209, 102, 0.4); border-radius: 8px; padding: 8px 10px; font-size: 12px; margin: 8px 0; }
 
+/* ── structure page ───────────────────────────────────────── */
+.struct { display: grid; grid-template-columns: 360px 1fr; gap: 18px; flex: 1; min-height: 0; }
+.st-tree { background: var(--bg-2); border: 1px solid var(--line); border-radius: var(--radius); padding: 8px; overflow: auto; user-select: none; }
+.st-row { display: flex; align-items: center; gap: 7px; padding: 6px 8px; border-radius: 8px; cursor: pointer; color: var(--text-2); }
+.st-row:hover { background: var(--bg-3); color: var(--text); }
+.st-row.sel, .st-folder.sel > .st-fhead { background: var(--bg-4); color: var(--text); }
+.st-row .nm { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.st-row .cnt { font-size: 11px; color: var(--text-3); }
+.st-row .car { font-size: 10px; width: 12px; transition: transform 0.15s; }
+.st-row .fico { color: var(--accent); }
+.st-row .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.st-folder.collapsed > .st-fhead .car { transform: rotate(-90deg); }
+.st-folder.collapsed > .st-kids { display: none; }
+.st-kids { margin-left: 14px; border-left: 1px solid var(--line); padding-left: 4px; }
+.st-root + .st-kids { margin-left: 8px; }
+.st-row.drop-target { outline: 2px dashed var(--accent); background: rgba(124,140,255,0.1); }
+.st-info { overflow: auto; }
+.st-plist .result { padding: 6px 8px; }
+.legend span { margin-right: 10px; }
+
 /* ── settings / tools ─────────────────────────────────────── */
 .settings { max-width: 860px; }
 .card-sec { background: var(--bg-2); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 18px; margin-bottom: 14px; }

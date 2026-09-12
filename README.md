@@ -16,7 +16,10 @@ one-way mirror to a NAS.
   (never linked), so the folder is self-contained and can be mirrored anywhere.
   Files keep their original names at the top of the project folder so CAD
   assemblies still find their parts.
-- **Projects** have a category (becomes a folder), status, progress, tags,
+- **Folders** go as deep as you like (`Furniture › 2nd Bedroom › Main Shelf`),
+  the project is always the last step, and the Structure page lets you build,
+  rename, and rearrange the tree by drag and drop. Disk folders follow.
+- **Projects** have a folder, status, progress, tags,
   description, notes, custom fields, and a history log.
 - **Versions.** Add a file with the same name again and it becomes v2; the old
   copy moves to `_versions/`. Each version can carry a note.
@@ -52,6 +55,11 @@ the files themselves; STL, OBJ and 3MF open in a rotatable viewer on the right.
 extracted from the file.
 
 ![Fusion 360 file selected](docs/screenshots/project-fusion.png)
+
+**Structure.** The folder tree editor: drag projects and folders, rename, add
+sub-folders, see what is on disk and on the NAS.
+
+![Structure page](docs/screenshots/structure.png)
 
 **Alternate layout.** The top-bar button moves the preview below the file grid.
 

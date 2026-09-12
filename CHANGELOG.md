@@ -4,6 +4,15 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-09-12
+
+- Folders are real: any depth, empty folders allowed, notes per folder.
+- New Structure page: tree editor with drag and drop for projects and folders, rename, sub-folder, delete (empty only), folder info with disk and NAS paths, counts and status.
+- Folder picker on the project header and in New Project replaces the free-text category box; "New folder…" is right in the list.
+- Sidebar tree shows empty folders and accepts project drops; double-click a folder to open it in Structure.
+- Renaming or moving a folder or project moves it on disk and rewrites every file path in the catalogue.
+- Fix: changing a project category previously only changed the label, not the disk folder.
+
 ## [0.2.1] - 2026-09-11
 
 - New home dashboard: quick actions (new project, add files, backup, drawing sheet, search), continue-where-you-left-off card, backup age warning, in-progress projects with progress blocks and covers, recent files, activity feed.
